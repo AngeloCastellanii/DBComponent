@@ -89,7 +89,7 @@ public class DbComponentFxApp extends Application {
         output.setWrapText(true);
 
         VBox root = new VBox(10,
-                new Label("Visualizador de desacople y pool reciclable"),
+                new Label("Visualizador de DbComponent - Proyecto 3"),
                 config,
                 new HBox(8, new Label("QueryId"), queryBox),
                 actions,

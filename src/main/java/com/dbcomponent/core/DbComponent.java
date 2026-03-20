@@ -52,9 +52,21 @@ public class DbComponent {
                     poolScaleDownThresholdMs,
                     poolAcquireTimeoutMs,
                     null);
-            this.predefinedQueries = QueryCatalog.load(queryCatalogResource);
+
+            Connection catalogConnection = null;
+            try {
+                catalogConnection = pool.acquire();
+                this.predefinedQueries = QueryCatalog.loadAdaptive(queryCatalogResource, catalogConnection);
+            } finally {
+                if (catalogConnection != null) {
+                    pool.release(catalogConnection);
+                }
+            }
         } catch (ClassNotFoundException e) {
             throw new IllegalStateException("JDBC driver not found: " + adapter.driverClassName(), e);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException("Interrupted while initializing query catalog", e);
         } catch (SQLException e) {
             throw new IllegalStateException("Cannot initialize connection pool", e);
         }
