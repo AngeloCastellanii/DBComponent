@@ -1,0 +1,11 @@
+com\dbcomponent\core\DbComponent.class
+com\dbcomponent\model\DbQueryResult.class
+com\dbcomponent\adapter\IAdapter.class
+com\dbcomponent\Main.class
+com\dbcomponent\pool\ConnectionPool.class
+com\dbcomponent\adapter\PostgresAdapter.class
+com\dbcomponent\core\DbComponent$DbTransaction.class
+com\dbcomponent\ui\DbComponentFxApp.class
+com\dbcomponent\core\QueryCatalog.class
+com\dbcomponent\adapter\H2Adapter.class
+com\dbcomponent\logging\SimulationLogger.class
