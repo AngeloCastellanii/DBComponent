@@ -5,10 +5,12 @@ import com.dbcomponent.model.DbQueryResult;
 import com.dbcomponent.pool.ConnectionPool;
 
 import java.sql.Connection;
+import java.sql.DatabaseMetaData;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
+import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -56,6 +58,7 @@ public class DbComponent {
             Connection catalogConnection = null;
             try {
                 catalogConnection = pool.acquire();
+                ensureH2DemoDataIfNeeded(catalogConnection);
                 this.predefinedQueries = QueryCatalog.loadAdaptive(queryCatalogResource, catalogConnection);
             } finally {
                 if (catalogConnection != null) {
@@ -207,5 +210,55 @@ public class DbComponent {
             rows.add(row);
         }
         return rows;
+    }
+
+    private void ensureH2DemoDataIfNeeded(Connection conn) throws SQLException {
+        if (!"H2".equalsIgnoreCase(adapter.dialectName())) {
+            return;
+        }
+        if (hasUserTables(conn)) {
+            return;
+        }
+
+        try (Statement st = conn.createStatement()) {
+            st.executeUpdate("CREATE TABLE IF NOT EXISTS productos ("
+                    + "id INT PRIMARY KEY, "
+                    + "nombre VARCHAR(120), "
+                    + "precio DECIMAL(10,2), "
+                    + "stock INT)");
+
+            st.executeUpdate("CREATE TABLE IF NOT EXISTS pedidos ("
+                    + "id INT PRIMARY KEY, "
+                    + "cliente_id INT, "
+                    + "estado VARCHAR(50), "
+                    + "creado_en TIMESTAMP)");
+
+            st.executeUpdate("MERGE INTO productos KEY(id) VALUES "
+                    + "(1, 'Mate', 2500.00, 80), "
+                    + "(2, 'Termo', 12000.00, 20), "
+                    + "(3, 'Bombilla', 3000.00, 35)");
+
+            st.executeUpdate("MERGE INTO pedidos KEY(id) VALUES "
+                    + "(1, 10, 'pendiente', CURRENT_TIMESTAMP), "
+                    + "(2, 11, 'completado', CURRENT_TIMESTAMP)");
+        }
+    }
+
+    private boolean hasUserTables(Connection conn) throws SQLException {
+        DatabaseMetaData meta = conn.getMetaData();
+        String[] types = { "TABLE" };
+        try (ResultSet rs = meta.getTables(conn.getCatalog(), null, "%", types)) {
+            while (rs.next()) {
+                String schema = rs.getString("TABLE_SCHEM");
+                if (schema == null) {
+                    return true;
+                }
+                String s = schema.trim().toUpperCase();
+                if (!s.startsWith("INFORMATION_SCHEMA") && !s.startsWith("PG_")) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 }

@@ -56,6 +56,7 @@ public class DbComponentFxApp extends Application {
         stage.setTitle("Proyecto 3 - DbComponent (JavaFX)");
 
         adapterBox.getItems().addAll("PostgreSQL", "H2");
+        adapterBox.valueProperty().addListener((obs, oldValue, newValue) -> applyAdapterDefaults(newValue));
         adapterBox.getSelectionModel().selectFirst();
 
         queryBox.setPromptText("Selecciona un queryId");
@@ -105,6 +106,7 @@ public class DbComponentFxApp extends Application {
         stage.show();
 
         append("Listo. Inicializa DbComponent para ver el desacople y el estado del pool.");
+        applyAdapterDefaults(adapterBox.getValue());
     }
 
     private void initDbComponent() {
@@ -139,6 +141,7 @@ public class DbComponentFxApp extends Application {
                 append("DbComponent inicializado con adapter " + db.getAdapterName() + ".");
             } catch (Exception ex) {
                 append("Error inicializando DbComponent: " + ex.getMessage());
+                append(buildAdapterHelpMessage(adapterBox.getValue()));
             }
         });
     }
@@ -229,6 +232,32 @@ public class DbComponentFxApp extends Application {
             return new H2Adapter();
         }
         return new PostgresAdapter();
+    }
+
+    private void applyAdapterDefaults(String selected) {
+        if ("H2".equalsIgnoreCase(selected)) {
+            hostField.setText("localhost");
+            portField.setText("9092");
+            databaseField.setText("testdb");
+            userField.setText("sa");
+            passField.setText("");
+            append("Adapter H2 seleccionado. Valores sugeridos: host=localhost, port=9092, db=testdb, user=sa, password=(vacio).");
+            return;
+        }
+
+        hostField.setText("localhost");
+        portField.setText("5432");
+        databaseField.setText("pool_simulator_db");
+        userField.setText("postgres");
+        passField.setText("1610");
+        append("Adapter PostgreSQL seleccionado. Valores sugeridos: host=localhost, port=5432, db=pool_simulator_db, user=postgres.");
+    }
+
+    private String buildAdapterHelpMessage(String selected) {
+        if ("H2".equalsIgnoreCase(selected)) {
+            return "H2 en este proyecto usa modo TCP. Verifica que el servidor H2 este activo (puerto 9092), y que la base/credenciales sean correctas.";
+        }
+        return "PostgreSQL seleccionado. Verifica host, puerto, base y usuario/password.";
     }
 
     private void append(String text) {
