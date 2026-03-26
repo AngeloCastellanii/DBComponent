@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<queries>
+  <query id="producto.listar">SELECT id, nombre, precio, stock FROM productos ORDER BY id LIMIT ?</query>
+  <query id="producto.stock_bajo">SELECT id, nombre, stock FROM productos WHERE stock &lt; ? ORDER BY stock LIMIT ?</query>
+  <query id="pedido.pendientes">SELECT id, cliente_id, estado, creado_en FROM pedidos WHERE estado = ? ORDER BY creado_en DESC LIMIT ?</query>
+</queries>

@@ -1,0 +1,3 @@
+producto.insano: SELECT id, nombre, precio, stock FROM productos ORDER BY id LIMIT ?
+producto.stock_bajo: SELECT id, nombre, stock FROM productos WHERE stock < ? ORDER BY stock LIMIT ?
+pedido.insano: SELECT id, cliente_id, estado, creado_en FROM pedidos WHERE estado = ? ORDER BY creado_en DESC LIMIT ?

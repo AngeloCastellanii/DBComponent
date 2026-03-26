@@ -1,6 +1,6 @@
 package com.dbcomponent.adapter;
 
-public class H2Adapter implements IAdapter {
+public class H2Adapter extends IAdapter {
 
     @Override
     public String dialectName() {

@@ -1,10 +1,10 @@
 package com.dbcomponent.adapter;
 
-public interface IAdapter {
+public abstract class IAdapter {
 
-    String dialectName();
+    public abstract String dialectName();
 
-    String driverClassName();
+    public abstract String driverClassName();
 
-    String buildJdbcUrl(String host, int port, String database);
+    public abstract String buildJdbcUrl(String host, int port, String database);
 }

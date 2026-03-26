@@ -1,6 +1,7 @@
 C:\Users\Angelo\Desktop\Programacion Visual\Proyecto 3 DbComponent\src\main\java\com\dbcomponent\adapter\H2Adapter.java
 C:\Users\Angelo\Desktop\Programacion Visual\Proyecto 3 DbComponent\src\main\java\com\dbcomponent\adapter\IAdapter.java
 C:\Users\Angelo\Desktop\Programacion Visual\Proyecto 3 DbComponent\src\main\java\com\dbcomponent\adapter\PostgresAdapter.java
+C:\Users\Angelo\Desktop\Programacion Visual\Proyecto 3 DbComponent\src\main\java\com\dbcomponent\adapter\SqliteAdapter.java
 C:\Users\Angelo\Desktop\Programacion Visual\Proyecto 3 DbComponent\src\main\java\com\dbcomponent\core\DbComponent.java
 C:\Users\Angelo\Desktop\Programacion Visual\Proyecto 3 DbComponent\src\main\java\com\dbcomponent\core\QueryCatalog.java
 C:\Users\Angelo\Desktop\Programacion Visual\Proyecto 3 DbComponent\src\main\java\com\dbcomponent\logging\SimulationLogger.java

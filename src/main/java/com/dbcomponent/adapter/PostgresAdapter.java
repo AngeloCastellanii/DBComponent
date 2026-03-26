@@ -1,6 +1,6 @@
 package com.dbcomponent.adapter;
 
-public class PostgresAdapter implements IAdapter {
+public class PostgresAdapter extends IAdapter {
 
     @Override
     public String dialectName() {

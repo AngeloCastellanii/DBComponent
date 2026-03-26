@@ -14,7 +14,7 @@ public class Main {
     public static void main(String[] args) {
         IAdapter adapter = new PostgresAdapter();
 
-        DbComponent db = new DbComponent(
+        DbComponent db = new DbComponent( 
                 adapter,
                 "localhost",
                 5432,
@@ -29,14 +29,14 @@ public class Main {
                 "queries.properties");
 
         try {
-            DbQueryResult r1 = db.query("producto.listar");
+            DbQueryResult r1 = db.query("producto.listar", 10);
             System.out.println("producto.listar -> rows=" + r1.getRows().size());
 
-            DbQueryResult r2 = db.query("producto.stock_bajo");
+            DbQueryResult r2 = db.query("producto.stock_bajo", 50, 10);
             System.out.println("producto.stock_bajo -> rows=" + r2.getRows().size());
 
             try (DbComponent.DbTransaction tx = db.transaction()) {
-                DbQueryResult r3 = tx.query("pedido.pendientes");
+                DbQueryResult r3 = tx.query("pedido.pendientes", "pendiente", 10);
                 System.out.println("pedido.pendientes (tx) -> rows=" + r3.getRows().size());
                 tx.commit();
             }

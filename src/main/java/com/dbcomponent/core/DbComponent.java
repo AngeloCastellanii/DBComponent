@@ -17,8 +17,8 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * DbComponent: decoupled by adapter and backed by internal connection pool.
- * Public API only allows predefined query ids (no raw SQL exposed).
+ * DbComponent desacoplado por adapter y respaldado por pool interno.
+ * La API publica solo permite query ids predefinidos (sin SQL crudo expuesto).
  */
 public class DbComponent {
 
@@ -58,7 +58,7 @@ public class DbComponent {
             Connection catalogConnection = null;
             try {
                 catalogConnection = pool.acquire();
-                ensureH2DemoDataIfNeeded(catalogConnection);
+                ensureDemoDataIfNeeded(catalogConnection);
                 this.predefinedQueries = QueryCatalog.loadAdaptive(queryCatalogResource, catalogConnection);
             } finally {
                 if (catalogConnection != null) {
@@ -76,17 +76,21 @@ public class DbComponent {
     }
 
     public DbQueryResult query(String queryId) throws SQLException, InterruptedException {
+        return query(queryId, new Object[0]);
+    }
+
+    public DbQueryResult query(String queryId, Object... params) throws SQLException, InterruptedException {
         String sql = resolveSql(queryId);
 
         Connection txConn = transactionConnection.get();
         if (txConn != null) {
-            return execute(txConn, sql);
+            return execute(txConn, sql, params);
         }
 
         Connection conn = null;
         try {
             conn = pool.acquire();
-            return execute(conn, sql);
+            return execute(conn, sql, params);
         } finally {
             if (conn != null) {
                 pool.release(conn);
@@ -138,8 +142,12 @@ public class DbComponent {
         }
 
         public DbQueryResult query(String queryId) throws SQLException {
+            return query(queryId, new Object[0]);
+        }
+
+        public DbQueryResult query(String queryId, Object... params) throws SQLException {
             ensureActive();
-            return execute(conn, resolveSql(queryId));
+            return execute(conn, resolveSql(queryId), params);
         }
 
         public void commit() throws SQLException {
@@ -185,8 +193,20 @@ public class DbComponent {
         return sql;
     }
 
-    private DbQueryResult execute(Connection conn, String sql) throws SQLException {
+    private DbQueryResult execute(Connection conn, String sql, Object... params) throws SQLException {
+        int expectedParams = countPositionalParameters(sql);
+        int providedParams = params == null ? 0 : params.length;
+        if (expectedParams != providedParams) {
+            throw new IllegalArgumentException("Query expects " + expectedParams
+                    + " params but received " + providedParams);
+        }
+
         try (PreparedStatement stmt = conn.prepareStatement(sql)) {
+            if (params != null) {
+                for (int i = 0; i < params.length; i++) {
+                    stmt.setObject(i + 1, params[i]);
+                }
+            }
             boolean hasResultSet = stmt.execute();
             if (!hasResultSet) {
                 return new DbQueryResult(false, stmt.getUpdateCount(), List.of());
@@ -195,6 +215,36 @@ public class DbComponent {
                 return new DbQueryResult(true, -1, mapRows(rs));
             }
         }
+    }
+
+    private int countPositionalParameters(String sql) {
+        int count = 0;
+        boolean inSingleQuote = false;
+        boolean inDoubleQuote = false;
+
+        for (int i = 0; i < sql.length(); i++) {
+            char c = sql.charAt(i);
+
+            if (c == '\'' && !inDoubleQuote) {
+                if (inSingleQuote && i + 1 < sql.length() && sql.charAt(i + 1) == '\'') {
+                    i++;
+                    continue;
+                }
+                inSingleQuote = !inSingleQuote;
+                continue;
+            }
+
+            if (c == '"' && !inSingleQuote) {
+                inDoubleQuote = !inDoubleQuote;
+                continue;
+            }
+
+            if (c == '?' && !inSingleQuote && !inDoubleQuote) {
+                count++;
+            }
+        }
+
+        return count;
     }
 
     private List<Map<String, Object>> mapRows(ResultSet rs) throws SQLException {
@@ -212,8 +262,9 @@ public class DbComponent {
         return rows;
     }
 
-    private void ensureH2DemoDataIfNeeded(Connection conn) throws SQLException {
-        if (!"H2".equalsIgnoreCase(adapter.dialectName())) {
+    private void ensureDemoDataIfNeeded(Connection conn) throws SQLException {
+        if (!"H2".equalsIgnoreCase(adapter.dialectName())
+                && !"SQLite".equalsIgnoreCase(adapter.dialectName())) {
             return;
         }
         if (hasUserTables(conn)) {
@@ -233,12 +284,15 @@ public class DbComponent {
                     + "estado VARCHAR(50), "
                     + "creado_en TIMESTAMP)");
 
-            st.executeUpdate("MERGE INTO productos KEY(id) VALUES "
+                st.executeUpdate("DELETE FROM productos");
+                st.executeUpdate("DELETE FROM pedidos");
+
+                st.executeUpdate("INSERT INTO productos (id, nombre, precio, stock) VALUES "
                     + "(1, 'Mate', 2500.00, 80), "
                     + "(2, 'Termo', 12000.00, 20), "
                     + "(3, 'Bombilla', 3000.00, 35)");
 
-            st.executeUpdate("MERGE INTO pedidos KEY(id) VALUES "
+                st.executeUpdate("INSERT INTO pedidos (id, cliente_id, estado, creado_en) VALUES "
                     + "(1, 10, 'pendiente', CURRENT_TIMESTAMP), "
                     + "(2, 11, 'completado', CURRENT_TIMESTAMP)");
         }

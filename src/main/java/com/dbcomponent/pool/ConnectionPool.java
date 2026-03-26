@@ -10,14 +10,14 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
- * PARTE 5 — Pool de Conexiones propio
+ * PARTE 5 - Pool de conexiones propio
  *
  * Mantiene un conjunto de conexiones reutilizables en una BlockingQueue.
- * Implementa escalado dinámico:
- * - Scale-up: si el tiempo de espera supera scaleUpThresholdMs -> agrega
- * conexiones (hasta maxSize)
- * - Scale-down: si el pool tiene más conexiones de las necesarias -> las cierra
- * (hasta minSize)
+ * Implementa escalado dinamico:
+ * - Escala hacia arriba: si el tiempo de espera supera scaleUpThresholdMs, agrega
+ * conexiones (hasta maxSize).
+ * - Escala hacia abajo: si el pool tiene mas conexiones de las necesarias, las cierra
+ * (hasta minSize).
  */
 public class ConnectionPool {
 

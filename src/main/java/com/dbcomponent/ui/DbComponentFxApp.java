@@ -3,6 +3,7 @@ package com.dbcomponent.ui;
 import com.dbcomponent.adapter.H2Adapter;
 import com.dbcomponent.adapter.IAdapter;
 import com.dbcomponent.adapter.PostgresAdapter;
+import com.dbcomponent.adapter.SqliteAdapter;
 import com.dbcomponent.core.DbComponent;
 import com.dbcomponent.model.DbQueryResult;
 import javafx.application.Application;
@@ -26,6 +27,10 @@ import java.util.concurrent.Executors;
 
 public class DbComponentFxApp extends Application {
 
+    private static final long FIXED_SCALE_UP_MS = 300;
+    private static final long FIXED_SCALE_DOWN_MS = 100;
+    private static final long FIXED_ACQUIRE_TIMEOUT_MS = 3000;
+
     private final ExecutorService worker = Executors.newSingleThreadExecutor();
 
     private DbComponent db;
@@ -39,15 +44,13 @@ public class DbComponentFxApp extends Application {
 
     private final TextField minPoolField = new TextField("2");
     private final TextField maxPoolField = new TextField("6");
-    private final TextField upField = new TextField("300");
-    private final TextField downField = new TextField("100");
-    private final TextField acquireField = new TextField("3000");
 
     private final ComboBox<String> queryBox = new ComboBox<>();
+    private final TextField queryParamsField = new TextField("10");
 
     private final Label adapterStatus = new Label("Adapter: -");
     private final Label poolStatus = new Label("Pool: total=0 | disponibles=0 | enUso=0");
-    private final Label decoupleStatus = new Label("Desacople: DbComponent depende de IAdapter");
+    private final Label decoupleStatus = new Label("Desacople: DbComponent depende de la abstraccion IAdapter");
 
     private final TextArea output = new TextArea();
 
@@ -55,11 +58,12 @@ public class DbComponentFxApp extends Application {
     public void start(Stage stage) {
         stage.setTitle("Proyecto 3 - DbComponent (JavaFX)");
 
-        adapterBox.getItems().addAll("PostgreSQL", "H2");
+        adapterBox.getItems().addAll("PostgreSQL", "H2", "SQLite");
         adapterBox.valueProperty().addListener((obs, oldValue, newValue) -> applyAdapterDefaults(newValue));
         adapterBox.getSelectionModel().selectFirst();
 
         queryBox.setPromptText("Selecciona un queryId");
+        queryParamsField.setPromptText("Parametros separados por coma. Ej: 50,10 o pendiente,10");
 
         Button connectBtn = new Button("Inicializar DbComponent");
         connectBtn.setOnAction(e -> initDbComponent());
@@ -81,8 +85,7 @@ public class DbComponentFxApp extends Application {
         config.setVgap(8);
         config.addRow(0, new Label("Adapter"), adapterBox, new Label("Host"), hostField, new Label("Port"), portField);
         config.addRow(1, new Label("Database"), databaseField, new Label("User"), userField, new Label("Password"), passField);
-        config.addRow(2, new Label("PoolMin"), minPoolField, new Label("PoolMax"), maxPoolField, new Label("Acquire(ms)"), acquireField);
-        config.addRow(3, new Label("ScaleUp(ms)"), upField, new Label("ScaleDown(ms)"), downField);
+        config.addRow(2, new Label("PoolMin"), minPoolField, new Label("PoolMax"), maxPoolField);
 
         HBox actions = new HBox(8, connectBtn, queryBtn, txBtn, metricsBtn, shutdownBtn);
 
@@ -93,6 +96,7 @@ public class DbComponentFxApp extends Application {
                 new Label("Visualizador de DbComponent - Proyecto 3"),
                 config,
                 new HBox(8, new Label("QueryId"), queryBox),
+            new HBox(8, new Label("Params"), queryParamsField),
                 actions,
                 adapterStatus,
                 decoupleStatus,
@@ -114,7 +118,7 @@ public class DbComponentFxApp extends Application {
             shutdownDbInternal();
             try {
                 IAdapter adapter = buildAdapter(adapterBox.getValue());
-                db = new DbComponent(
+                db = new DbComponent( 
                         adapter,
                         hostField.getText().trim(),
                         Integer.parseInt(portField.getText().trim()),
@@ -123,9 +127,9 @@ public class DbComponentFxApp extends Application {
                         passField.getText().trim(),
                         Integer.parseInt(minPoolField.getText().trim()),
                         Integer.parseInt(maxPoolField.getText().trim()),
-                        Long.parseLong(upField.getText().trim()),
-                        Long.parseLong(downField.getText().trim()),
-                        Long.parseLong(acquireField.getText().trim()),
+                        FIXED_SCALE_UP_MS,
+                        FIXED_SCALE_DOWN_MS,
+                        FIXED_ACQUIRE_TIMEOUT_MS,
                         "queries.properties");
 
                 List<String> queryIds = db.getQueryIds();
@@ -159,8 +163,9 @@ public class DbComponentFxApp extends Application {
 
         worker.submit(() -> {
             try {
-                DbQueryResult result = db.query(queryId);
-                append("Query " + queryId + " ejecutada. Rows=" + result.getRows().size());
+                Object[] params = parseParams(queryParamsField.getText());
+                DbQueryResult result = db.query(queryId, params);
+                append("Query " + queryId + " ejecutada. Params=" + params.length + ", Rows=" + result.getRows().size());
                 Platform.runLater(this::refreshPoolLabels);
             } catch (Exception ex) {
                 append("Error ejecutando query: " + ex.getMessage());
@@ -178,8 +183,8 @@ public class DbComponentFxApp extends Application {
             try (DbComponent.DbTransaction tx = db.transaction()) {
                 String first = pickQuery(0);
                 String second = pickQuery(1);
-                DbQueryResult r1 = tx.query(first);
-                DbQueryResult r2 = tx.query(second);
+            DbQueryResult r1 = tx.query(first, defaultParamsFor(first));
+            DbQueryResult r2 = tx.query(second, defaultParamsFor(second));
                 tx.commit();
                 append("Transaccion OK: " + first + "(" + r1.getRows().size() + ") + "
                         + second + "(" + r2.getRows().size() + ")");
@@ -196,6 +201,63 @@ public class DbComponentFxApp extends Application {
             throw new IllegalStateException("No hay queryIds cargados");
         }
         return ids.get(Math.min(idx, ids.size() - 1));
+    }
+
+    private Object[] parseParams(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return new Object[0];
+        }
+
+        String[] tokens = raw.split(",");
+        Object[] values = new Object[tokens.length];
+        for (int i = 0; i < tokens.length; i++) {
+            values[i] = parseToken(tokens[i]);
+        }
+        return values;
+    }
+
+    private Object parseToken(String token) {
+        String t = token == null ? "" : token.trim();
+        if (t.isEmpty()) {
+            return "";
+        }
+        if ("null".equalsIgnoreCase(t)) {
+            return null;
+        }
+        if ("true".equalsIgnoreCase(t) || "false".equalsIgnoreCase(t)) {
+            return Boolean.parseBoolean(t);
+        }
+        if (t.matches("-?\\d+")) {
+            try {
+                return Integer.parseInt(t);
+            } catch (NumberFormatException ignored) {
+                return Long.parseLong(t);
+            }
+        }
+        if (t.matches("-?\\d+\\.\\d+")) {
+            return Double.parseDouble(t);
+        }
+        return t;
+    }
+
+    private Object[] defaultParamsFor(String queryId) {
+        if (queryId == null || queryId.isBlank()) {
+            return new Object[0];
+        }
+
+        if ("producto.listar".equals(queryId)) {
+            return new Object[] { 10 };
+        }
+        if ("producto.stock_bajo".equals(queryId)) {
+            return new Object[] { 50, 10 };
+        }
+        if ("pedido.pendientes".equals(queryId)) {
+            return new Object[] { "pendiente", 10 };
+        }
+        if (queryId.startsWith("auto.") && queryId.endsWith(".listar")) {
+            return new Object[] { 10 };
+        }
+        return new Object[0];
     }
 
     private void refreshPoolLabels() {
@@ -231,10 +293,23 @@ public class DbComponentFxApp extends Application {
         if ("H2".equalsIgnoreCase(selected)) {
             return new H2Adapter();
         }
+        if ("SQLite".equalsIgnoreCase(selected)) {
+            return new SqliteAdapter();
+        }
         return new PostgresAdapter();
     }
 
     private void applyAdapterDefaults(String selected) {
+        if ("SQLite".equalsIgnoreCase(selected)) {
+            hostField.setText("local-file");
+            portField.setText("0");
+            databaseField.setText("sqlite-demo.db");
+            userField.setText("");
+            passField.setText("");
+            append("Adapter SQLite seleccionado. Valores sugeridos: db=sqlite-demo.db (host/port/user/password no aplican). ");
+            return;
+        }
+
         if ("H2".equalsIgnoreCase(selected)) {
             hostField.setText("localhost");
             portField.setText("9092");
@@ -254,6 +329,9 @@ public class DbComponentFxApp extends Application {
     }
 
     private String buildAdapterHelpMessage(String selected) {
+        if ("SQLite".equalsIgnoreCase(selected)) {
+            return "SQLite usa archivo local (ejemplo: sqlite-demo.db). Si no existe, se crea automaticamente al conectar.";
+        }
         if ("H2".equalsIgnoreCase(selected)) {
             return "H2 en este proyecto usa modo TCP. Verifica que el servidor H2 este activo (puerto 9092), y que la base/credenciales sean correctas.";
         }
